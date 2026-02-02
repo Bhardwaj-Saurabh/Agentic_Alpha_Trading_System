@@ -1,10 +1,15 @@
 # Configuration file for API keys and settings
 # Replace the placeholder values with your actual API keys
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class Config:
     # OpenAI API Configuration
     #TODO: Replace with the openai key.  
-    OPENAI_API_KEY = ""
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")  # Replace with your OpenAI API key
+    OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")  # Default model is gpt-4o
     
     # Alternative AI Service (Anthropic) - Optional
     ANTHROPIC_API_KEY = "your_anthropic_api_key_here"  # Optional, only if using Anthropic
@@ -16,7 +21,7 @@ class Config:
     
     # News and Sentiment APIs - Optional  
     # I am leaving this here to show that taviliy is a great way to use news api to get better sentiment analysis.
-    TAVILY_API_KEY = "your_tavily_key_here"  # Optional, for news sentiment analysis
+    TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")  # Optional, for news sentiment analysis
     
     # Database Configuration
     #TODO:  Change this to your local database if you want to use a database.
