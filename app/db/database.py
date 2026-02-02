@@ -1,0 +1,176 @@
+import os
+import sys
+import psycopg2
+from psycopg2.extras import RealDictCursor
+from datetime import datetime, date
+
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+from config import Config
+
+class Database:
+    def __init__(self):
+        try:
+            # Try config file first, then fallback to environment variable
+            database_url = Config.DATABASE_URL if hasattr(Config, 'DATABASE_URL') else os.environ.get('DATABASE_URL', 'postgresql://localhost/trading_db')
+            self.conn = psycopg2.connect(database_url)
+        except Exception as e:
+            print(f"Database connection failed: {e}")
+            print("Using SQLite fallback...")
+            # Could add SQLite fallback here if needed
+        self.create_tables()
+
+    def create_tables(self):
+        with self.conn.cursor() as cur:
+            try:
+                # Keep existing sequences for signals and decisions
+                cur.execute("""
+                    CREATE SEQUENCE IF NOT EXISTS trading_signals_id_seq;
+                    CREATE SEQUENCE IF NOT EXISTS trading_decisions_id_seq;
+                """)
+
+
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS trading_signals (
+                        id INTEGER PRIMARY KEY DEFAULT nextval('trading_signals_id_seq'),
+                        symbol VARCHAR(10) NOT NULL,
+                        signal_type VARCHAR(10) NOT NULL,
+                        strategy VARCHAR(50) NOT NULL,
+                        confidence FLOAT NOT NULL,
+                        timestamp TIMESTAMP NOT NULL
+                    )
+                """)
+
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS screened_stocks (
+                        id SERIAL PRIMARY KEY,
+                        symbol VARCHAR(10) NOT NULL,
+                        company_name VARCHAR(100),
+                        current_price DECIMAL(10, 2) NOT NULL,
+                        average_volume BIGINT NOT NULL,
+                        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE(symbol)
+                    )
+                """)
+
+
+                # Add new table for trading decisions
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS trading_decisions (
+                        id SERIAL PRIMARY KEY,
+                        symbol VARCHAR(10) NOT NULL,
+                        decision TEXT NOT NULL,
+                        confidence FLOAT NOT NULL,
+                        agent_name VARCHAR(50) NOT NULL DEFAULT 'supervisor',
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    );
+                    CREATE UNIQUE INDEX IF NOT EXISTS trading_decisions_daily_idx 
+                    ON trading_decisions (symbol, date(created_at));
+                """)
+
+                self.conn.commit()
+            except Exception as e:
+                self.conn.rollback()
+                print(f"Error creating tables: {str(e)}")
+                raise
+
+
+    def add_signal(self, symbol, signal_type, strategy, confidence):
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO trading_signals 
+                (symbol, signal_type, strategy, confidence, timestamp)
+                VALUES (%s, %s, %s, %s, %s)
+                """, (symbol, signal_type, strategy, confidence, datetime.now()))
+            self.conn.commit()
+
+    def upsert_screened_stock(self, symbol, company_name, current_price, average_volume):
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO screened_stocks 
+                (symbol, company_name, current_price, average_volume, last_updated)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (symbol) 
+                DO UPDATE SET 
+                    company_name = EXCLUDED.company_name,
+                    current_price = EXCLUDED.current_price,
+                    average_volume = EXCLUDED.average_volume,
+                    last_updated = EXCLUDED.last_updated
+                """, (symbol, company_name, current_price, average_volume, datetime.now()))
+            self.conn.commit()
+
+    def get_screened_stocks(self):
+        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT * FROM screened_stocks 
+                ORDER BY symbol ASC
+                """)
+            return cur.fetchall()
+
+    def clear_old_screened_stocks(self, hours=24):
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                DELETE FROM screened_stocks 
+                WHERE last_updated < NOW() - INTERVAL '%s hours'
+                """, (hours,))
+            self.conn.commit()
+
+    def save_trading_decision(self, symbol: str, decision: str, confidence: float, agent_name: str = 'supervisor'):
+        """Save a new trading decision for a stock"""
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO trading_decisions (symbol, decision, confidence, agent_name)
+                    VALUES (%s, %s, %s, %s)
+                    """, (symbol, decision, confidence, agent_name))
+                self.conn.commit()
+        except Exception as e:
+            print(f"Database connection error in save_trading_decision: {str(e)}")
+            # Try to reconnect
+            try:
+                import os
+                self.conn = psycopg2.connect(os.environ['DATABASE_URL'])
+                with self.conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO trading_decisions (symbol, decision, confidence, agent_name)
+                        VALUES (%s, %s, %s, %s)
+                        """, (symbol, decision, confidence, agent_name))
+                    self.conn.commit()
+                print("Database reconnection successful")
+            except Exception as reconnect_error:
+                print(f"Database reconnection failed: {str(reconnect_error)}")
+                raise
+
+    def get_latest_trading_decisions(self, symbol: str, limit: int = 2):
+        """Get the latest trading decisions for a stock"""
+        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT decision, confidence, agent_name, created_at
+                FROM trading_decisions
+                WHERE symbol = %s
+                ORDER BY created_at DESC
+                LIMIT %s
+                """, (symbol, limit))
+            return cur.fetchall()
+
+    def get_all_agent_decisions(self, symbol: str):
+        """Get the latest decision from each agent for a stock"""
+        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                WITH RankedDecisions AS (
+                    SELECT 
+                        symbol,
+                        decision,
+                        confidence,
+                        agent_name,
+                        created_at,
+                        ROW_NUMBER() OVER (PARTITION BY agent_name ORDER BY created_at DESC) as rn
+                    FROM trading_decisions
+                    WHERE symbol = %s
+                )
+                SELECT symbol, decision, confidence, agent_name, created_at
+                FROM RankedDecisions
+                WHERE rn = 1
+                ORDER BY agent_name;
+                """, (symbol,))
+            return cur.fetchall()
+
