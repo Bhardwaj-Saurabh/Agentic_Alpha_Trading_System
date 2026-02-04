@@ -92,11 +92,10 @@ class PydanticTradingAgentSystem:
             stock_data = get_stock_data(ctx.deps.symbol, period, data=ctx.deps.data)
             return f"Stock data retrieved: {stock_data.model_dump_json()}"
         
-        @market_agent.tool  
+        @market_agent.tool
         def get_fibonacci_analysis(ctx: RunContext[Dependencies], lookback_days: int = 20) -> str:
             """Calculate Fibonacci retracement levels and trading signals"""
-            #TODO:  what classe will i call to determine the fibonacci levels?
-            #fib_data = 
+            fib_data = calculate_fibonacci_levels(ctx.deps.symbol, lookback_days)
             return f"Fibonacci analysis: {fib_data.model_dump_json()}"
         
         @market_agent.tool
