@@ -11,7 +11,7 @@ Tests all configured APIs to ensure they're working correctly:
 import sys
 import os
 
-sys.path.append(os.path.join(os.path.dirname(__file__), 'app'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from app.data.enhanced_market_data import EnhancedMarketData
 from app.config import Config
