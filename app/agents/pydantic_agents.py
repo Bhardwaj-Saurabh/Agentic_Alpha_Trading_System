@@ -228,7 +228,59 @@ class PydanticTradingAgentSystem:
         def save_risk_audit(ctx: RunContext[Dependencies], action: str, confidence: float, rationale: str, risk_level: str) -> str:
             """Save risk assessment audit entry"""
             return save_audit_entry(ctx.deps.symbol, "RISK", action, confidence, rationale, risk_level=risk_level)
-        
+
+        # Trading Signal Agent - Specialized agent for generating clear BUY/SELL/HOLD signals
+        trading_signal_agent = Agent(
+            model=self.model_name,
+            deps_type=Dependencies,
+            output_type=TradingDecision
+        )
+
+        @trading_signal_agent.system_prompt
+        def trading_signal_system_prompt(ctx: RunContext[Dependencies]) -> str:
+            return f"""You are a Trading Signal Agent specializing in generating clear, actionable trading signals for {ctx.deps.symbol}.
+
+            Your role:
+            - Generate specific trading signals: BUY, SELL, or HOLD
+            - Use technical analysis, Fibonacci levels, and market sentiment
+            - Provide high-confidence trading decisions with clear rationale
+            - Assess risk level (LOW, MEDIUM, HIGH) for each signal
+            - Suggest optimal entry/exit prices and position sizing
+
+            IMPORTANT: You MUST return a decision field with one of these exact values: "BUY", "SELL", or "HOLD" (TradingSignal enum)
+            IMPORTANT: You MUST return a risk_level field with one of these exact values: "LOW", "MEDIUM", or "HIGH" (RiskLevel enum)
+
+            Focus on clear, actionable signals that traders can execute immediately."""
+
+        @trading_signal_agent.tool
+        def get_market_data(ctx: RunContext[Dependencies], period: str = "1mo") -> str:
+            """Get comprehensive stock data with technical indicators"""
+            stock_data = get_stock_data(ctx.deps.symbol, period, data=ctx.deps.data)
+            return f"Stock data retrieved: {stock_data.model_dump_json()}"
+
+        @trading_signal_agent.tool
+        def get_fibonacci_analysis(ctx: RunContext[Dependencies], lookback_days: int = 20) -> str:
+            """Calculate Fibonacci retracement levels and trading signals"""
+            fib_data = calculate_fibonacci_levels(ctx.deps.symbol, lookback_days)
+            return f"Fibonacci analysis: {fib_data.model_dump_json()}"
+
+        @trading_signal_agent.tool
+        def get_sentiment_analysis(ctx: RunContext[Dependencies], timeframe: str = "5d") -> str:
+            """Analyze market sentiment for signal confirmation"""
+            sentiment_data = analyze_market_sentiment(ctx.deps.symbol, timeframe)
+            return f"Sentiment analysis: {sentiment_data.model_dump_json()}"
+
+        @trading_signal_agent.tool
+        def analyze_patterns(ctx: RunContext[Dependencies], lookback_days: int = 30) -> str:
+            """Analyze historical trading patterns for signal validation"""
+            pattern_data = analyze_decision_patterns(ctx.deps.symbol, lookback_days)
+            return f"Decision patterns: {pattern_data}"
+
+        @trading_signal_agent.tool
+        def save_signal_audit(ctx: RunContext[Dependencies], action: str, confidence: float, rationale: str, risk_level: str) -> str:
+            """Save trading signal audit entry"""
+            return save_audit_entry(ctx.deps.symbol, "TRADING_SIGNAL", action, confidence, rationale, risk_level=risk_level)
+
         # Supervisor Agent
         supervisor_agent = Agent(
             model=self.model_name,
@@ -278,6 +330,7 @@ class PydanticTradingAgentSystem:
             "strategy_agent": strategy_agent,
             "regulatory_agent": regulatory_agent,
             "risk_manager": risk_agent,
+            "trading_signal": trading_signal_agent,
             "supervisor": supervisor_agent
         }
     
@@ -416,7 +469,41 @@ class PydanticTradingAgentSystem:
         except Exception as e:
             print(f"Error in compliance check: {str(e)}")
             return {"error": str(e), "compliance_check": False}
-    
+
+    def run_trading_signal_analysis(self, symbol: str, data: pd.DataFrame) -> Dict[str, Any]:
+        """Run Trading Signal Agent to generate clear BUY/SELL/HOLD signals"""
+        try:
+            deps = Dependencies(symbol=symbol, data=data)
+
+            signal_prompt = f"""
+            Generate a clear trading signal for {symbol}:
+            1. Get current market data using get_market_data tool
+            2. Calculate Fibonacci levels using get_fibonacci_analysis tool
+            3. Analyze market sentiment using get_sentiment_analysis tool
+            4. Review historical patterns using analyze_patterns tool
+            5. Generate a specific trading signal: BUY, SELL, or HOLD
+            6. Determine risk level: LOW, MEDIUM, or HIGH
+            7. Provide specific entry/exit prices and position sizing recommendations
+            8. Save your signal using save_signal_audit tool
+
+            CRITICAL: Your decision field MUST be exactly one of: "BUY", "SELL", or "HOLD"
+            CRITICAL: Your risk_level field MUST be exactly one of: "LOW", "MEDIUM", or "HIGH"
+
+            Return a structured TradingDecision with clear, actionable recommendations.
+            """
+
+            signal_result = self.agents["trading_signal"].run_sync(signal_prompt, deps=deps)
+
+            return {
+                "agent": "trading_signal",
+                "analysis": signal_result.output,
+                "confidence": signal_result.output.confidence if hasattr(signal_result.output, 'confidence') else 0.80
+            }
+
+        except Exception as e:
+            print(f"Error in trading signal analysis: {str(e)}")
+            return {"error": str(e)}
+
     def run_supervisor_decision(self, symbol: str, all_analysis: Dict) -> Dict[str, Any]:
         """Run final supervisor decision with comprehensive analysis"""
         try:

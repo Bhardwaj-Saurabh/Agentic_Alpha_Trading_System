@@ -100,6 +100,41 @@ def run_risk_manager():
     except Exception as e:
         return {"error": str(e)}
 
+def run_trading_signal_agent():
+    """Run Trading Signal Agent individually"""
+    try:
+        pydantic_system = get_pydantic_agents()
+        symbol = st.session_state.symbol
+        print(f"📊 Running Trading Signal Agent for {symbol}...")
+
+        signal_results = pydantic_system.run_trading_signal_analysis(symbol, st.session_state.data)
+
+        if "error" in signal_results:
+            return {"error": signal_results["error"]}
+
+        signal_analysis = signal_results.get("analysis", "No signal analysis available")
+
+        if hasattr(signal_analysis, 'decision'):
+            decision_signal = signal_analysis.decision.value if hasattr(signal_analysis.decision, 'value') else str(signal_analysis.decision)
+            risk_level = signal_analysis.risk_level.value if hasattr(signal_analysis.risk_level, 'value') else str(signal_analysis.risk_level)
+            signal_text = f"SIGNAL: {decision_signal}\nRISK LEVEL: {risk_level}\n\nRATIONALE: {signal_analysis.rationale}"
+            confidence = signal_analysis.confidence
+        else:
+            signal_text = str(signal_analysis)
+            confidence = signal_results.get("confidence", 0.8)
+            decision_signal = "HOLD"
+            risk_level = "MEDIUM"
+
+        return {
+            "analysis": signal_text,
+            "decision": decision_signal,
+            "risk_level": risk_level,
+            "confidence": confidence,
+            "timestamp": pd.Timestamp.now()
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
 def run_regulatory_agent(symbol):
     """Run Regulatory Agent individually"""
     # Check if other agents have run
@@ -223,9 +258,13 @@ def save_trade_to_database(symbol):
                                         st.session_state.strategy_analysis['confidence'], 'strategy_agent')
         
         if 'risk_analysis' in st.session_state and st.session_state.risk_analysis:
-            storage.save_trading_decision(symbol, "Risk Analysis Completed", 
+            storage.save_trading_decision(symbol, "Risk Analysis Completed",
                                         st.session_state.risk_analysis['confidence'], 'risk_manager')
-        
+
+        if 'trading_signal_analysis' in st.session_state and st.session_state.trading_signal_analysis:
+            storage.save_trading_decision(symbol, st.session_state.trading_signal_analysis['decision'],
+                                        st.session_state.trading_signal_analysis['confidence'], 'trading_signal')
+
         if 'regulatory_analysis' in st.session_state and st.session_state.regulatory_analysis:
             storage.save_trading_decision(symbol, st.session_state.regulatory_analysis['recommendation'], 
                                         st.session_state.regulatory_analysis['confidence'], 'regulatory_agent')
@@ -251,6 +290,8 @@ if 'trend_analysis' not in st.session_state:
     st.session_state.trend_analysis = None
 if 'sentiment_analysis' not in st.session_state:
     st.session_state.sentiment_analysis = None
+if 'trading_signal_analysis' not in st.session_state:
+    st.session_state.trading_signal_analysis = None
 if 'regulatory_analysis' not in st.session_state:
     st.session_state.regulatory_analysis = None
 if 'decision' not in st.session_state:
@@ -302,6 +343,7 @@ if new_symbol != st.session_state.symbol:
     st.session_state.signals = None
     st.session_state.trend_analysis = None
     st.session_state.sentiment_analysis = None
+    st.session_state.trading_signal_analysis = None
     st.session_state.regulatory_analysis = None
     st.session_state.decision = None
 
@@ -310,8 +352,9 @@ load_data_button = st.sidebar.button("Load Stock Data")
 st.sidebar.write("**🤖 Run Individual AI Agents:**")
 
 market_button = st.sidebar.button("📈 Market Analyst", use_container_width=True, key="market_btn")
-strategy_button = st.sidebar.button("🎯 Strategy Agent", use_container_width=True, key="strategy_btn") 
+strategy_button = st.sidebar.button("🎯 Strategy Agent", use_container_width=True, key="strategy_btn")
 risk_button = st.sidebar.button("⚠️ Risk Manager", use_container_width=True, key="risk_btn")
+trading_signal_button = st.sidebar.button("📊 Trading Signal Agent", use_container_width=True, key="trading_signal_btn")
 regulatory_button = st.sidebar.button("🏛️ Regulatory Agent", use_container_width=True, key="regulatory_btn")
 supervisor_button = st.sidebar.button("🎯 Supervisor Agent", use_container_width=True, key="supervisor_btn")
 
@@ -415,7 +458,18 @@ if 'data' in st.session_state and st.session_state.data is not None and not st.s
                 st.session_state.risk_analysis = result
                 st.success("✅ Risk Manager completed!")
                 st.rerun()
-    
+
+    # Trading Signal Agent Button
+    if trading_signal_button:
+        with st.spinner("📊 Running Trading Signal Agent..."):
+            result = run_trading_signal_agent()
+            if "error" in result:
+                st.error(result["error"])
+            else:
+                st.session_state.trading_signal_analysis = result
+                st.success("✅ Trading Signal Agent completed!")
+                st.rerun()
+
     # Regulatory Agent Button
     if regulatory_button:
         with st.spinner("🏛️ Running Regulatory Agent..."):
@@ -448,7 +502,7 @@ if 'data' in st.session_state and st.session_state.data is not None and not st.s
                 st.success(trade_result)
                 st.rerun()
 else:
-    if market_button or strategy_button or risk_button or regulatory_button or supervisor_button or trade_button:
+    if market_button or strategy_button or risk_button or trading_signal_button or regulatory_button or supervisor_button or trade_button:
         st.error("Please load stock data first by clicking 'Load Stock Data'.")
 
 with col2:
@@ -456,13 +510,15 @@ with col2:
     
     # Show execution progress
     agents_run = 0
-    total_agents = 5
-    
+    total_agents = 6
+
     if 'market_analysis' in st.session_state and st.session_state.market_analysis:
         agents_run += 1
     if 'strategy_analysis' in st.session_state and st.session_state.strategy_analysis:
         agents_run += 1
     if 'risk_analysis' in st.session_state and st.session_state.risk_analysis:
+        agents_run += 1
+    if 'trading_signal_analysis' in st.session_state and st.session_state.trading_signal_analysis:
         agents_run += 1
     if 'regulatory_analysis' in st.session_state and st.session_state.regulatory_analysis:
         agents_run += 1
@@ -507,7 +563,28 @@ with col2:
             st.write(f"**Completed:** {result['timestamp'].strftime('%H:%M:%S')}")
     else:
         st.info("⚠️ Risk Manager: Not run yet (requires Market Analyst first)")
-    
+
+    # Trading Signal Agent Results
+    if 'trading_signal_analysis' in st.session_state and st.session_state.trading_signal_analysis:
+        with st.expander("📊 Trading Signal Agent Results", expanded=True):
+            result = st.session_state.trading_signal_analysis
+            st.write(result['analysis'])
+
+            # Highlight the signal decision
+            decision = result.get('decision', 'HOLD')
+            if decision == 'BUY':
+                st.success(f"🟢 **Signal: {decision}**")
+            elif decision == 'SELL':
+                st.error(f"🔴 **Signal: {decision}**")
+            else:
+                st.warning(f"🟡 **Signal: {decision}**")
+
+            st.write(f"**Risk Level:** {result.get('risk_level', 'MEDIUM')}")
+            st.write(f"**Confidence:** {result['confidence']:.1%}")
+            st.write(f"**Completed:** {result['timestamp'].strftime('%H:%M:%S')}")
+    else:
+        st.info("📊 Trading Signal Agent: Not run yet - Click button in sidebar")
+
     # Regulatory Agent Results
     if 'regulatory_analysis' in st.session_state and st.session_state.regulatory_analysis:
         with st.expander("🏛️ Regulatory Agent Results", expanded=False):
