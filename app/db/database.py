@@ -63,8 +63,27 @@ class Database:
                         agent_name VARCHAR(50) NOT NULL DEFAULT 'supervisor',
                         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                     );
-                    CREATE UNIQUE INDEX IF NOT EXISTS trading_decisions_daily_idx 
+                    CREATE UNIQUE INDEX IF NOT EXISTS trading_decisions_daily_idx
                     ON trading_decisions (symbol, date(created_at));
+                """)
+
+                # Add audit trail table for compliance
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS audit_trail (
+                        id SERIAL PRIMARY KEY,
+                        symbol VARCHAR(10) NOT NULL,
+                        decision_type VARCHAR(50) NOT NULL,
+                        action VARCHAR(20) NOT NULL,
+                        confidence FLOAT NOT NULL,
+                        rationale TEXT,
+                        compliance_status VARCHAR(50),
+                        risk_level VARCHAR(20),
+                        position_size VARCHAR(50),
+                        blocked_trades TEXT,
+                        timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    );
+                    CREATE INDEX IF NOT EXISTS audit_trail_symbol_idx ON audit_trail (symbol);
+                    CREATE INDEX IF NOT EXISTS audit_trail_timestamp_idx ON audit_trail (timestamp DESC);
                 """)
 
                 self.conn.commit()
@@ -157,7 +176,7 @@ class Database:
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
                 WITH RankedDecisions AS (
-                    SELECT 
+                    SELECT
                         symbol,
                         decision,
                         confidence,
@@ -173,4 +192,118 @@ class Database:
                 ORDER BY agent_name;
                 """, (symbol,))
             return cur.fetchall()
+
+    def save_audit_entry(self, symbol: str, decision_type: str, action: str, confidence: float,
+                        rationale: str, compliance_status=None, risk_level=None,
+                        position_size=None, blocked_trades=None):
+        """Save a detailed audit entry for compliance review"""
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO audit_trail
+                    (symbol, decision_type, action, confidence, rationale, compliance_status,
+                     risk_level, position_size, blocked_trades)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (symbol, decision_type, action, confidence, rationale, compliance_status,
+                          risk_level, position_size, blocked_trades))
+                self.conn.commit()
+        except Exception as e:
+            print(f"Error saving audit entry: {str(e)}")
+            self.conn.rollback()
+            raise
+
+    def get_audit_trail(self, symbol=None, limit=10):
+        """Retrieve audit trail entries"""
+        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+            if symbol:
+                cur.execute("""
+                    SELECT * FROM audit_trail
+                    WHERE symbol = %s
+                    ORDER BY timestamp DESC
+                    LIMIT %s
+                    """, (symbol, limit))
+            else:
+                cur.execute("""
+                    SELECT * FROM audit_trail
+                    ORDER BY timestamp DESC
+                    LIMIT %s
+                    """, (limit,))
+            return cur.fetchall()
+
+    def get_trading_decisions(self, symbol=None):
+        """Get all trading decisions, optionally filtered by symbol"""
+        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+            if symbol:
+                cur.execute("""
+                    SELECT * FROM trading_decisions
+                    WHERE symbol = %s
+                    ORDER BY created_at DESC
+                    """, (symbol,))
+            else:
+                cur.execute("""
+                    SELECT * FROM trading_decisions
+                    ORDER BY created_at DESC
+                    """)
+            return cur.fetchall()
+
+    def get_decisions_summary(self):
+        """Get summary of all decisions"""
+        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # Get total decisions
+            cur.execute("SELECT COUNT(*) as total FROM trading_decisions")
+            total = cur.fetchone()['total']
+
+            # Get unique agents
+            cur.execute("SELECT DISTINCT agent_name FROM trading_decisions")
+            agents = [row['agent_name'] for row in cur.fetchall()]
+
+            # Get unique symbols
+            cur.execute("SELECT DISTINCT symbol FROM trading_decisions")
+            symbols = [row['symbol'] for row in cur.fetchall()]
+
+            # Get latest decisions
+            cur.execute("""
+                SELECT * FROM trading_decisions
+                ORDER BY created_at DESC
+                LIMIT 10
+                """)
+            latest = cur.fetchall()
+
+            return {
+                "total_decisions": total,
+                "agents": agents,
+                "symbols": symbols,
+                "latest_decisions": latest
+            }
+
+    def get_all_decisions_summary(self):
+        """Get comprehensive summary of all decisions (alias for compatibility)"""
+        return self.get_decisions_summary()
+
+    def get_audit_summary(self):
+        """Get summary of audit trail"""
+        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # Total entries
+            cur.execute("SELECT COUNT(*) as total FROM audit_trail")
+            total = cur.fetchone()['total']
+
+            # Supervisor decisions
+            cur.execute("""
+                SELECT COUNT(*) as count FROM audit_trail
+                WHERE decision_type = 'SUPERVISOR'
+                """)
+            supervisor = cur.fetchone()['count']
+
+            # Regulatory decisions
+            cur.execute("""
+                SELECT COUNT(*) as count FROM audit_trail
+                WHERE decision_type = 'REGULATORY'
+                """)
+            regulatory = cur.fetchone()['count']
+
+            return {
+                "total_entries": total,
+                "supervisor_decisions": supervisor,
+                "regulatory_decisions": regulatory
+            }
 

@@ -24,8 +24,10 @@ class Config:
     TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")  # Optional, for news sentiment analysis
     
     # Database Configuration
-    #TODO:  Change this to your local database if you want to use a database.
-    DATABASE_URL = "postgresql://localhost/trading_db"  # Update with your database URL if needed
+    # Set DATABASE_URL in your .env file or update below
+    # Format: postgresql://username:password@host:port/database_name
+    # Example: postgresql://postgres:password@localhost:5432/trading_db
+    DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/trading_db")
     
     # Application Settings
     DEFAULT_SYMBOL = "AAPL"
@@ -36,6 +38,13 @@ class Config:
     USE_OPENAI = True  # Set to False to use Anthropic instead
 
 # Instructions for setup:
-# 1. Replace "your_openai_api_key_here" with your actual OpenAI API key
-# 2. For local database, install PostgreSQL or use SQLite by changing DATABASE_URL
+# 1. Replace "your_openai_api_key_here" with your actual OpenAI API key in .env file
+# 2. Database Setup (PostgreSQL):
+#    a. Install PostgreSQL: https://www.postgresql.org/download/
+#    b. Create a database: CREATE DATABASE trading_db;
+#    c. Update DATABASE_URL in .env file:
+#       DATABASE_URL=postgresql://username:password@localhost:5432/trading_db
+#    d. The application will automatically create all required tables on first run
+#
+# Alternative: For quick testing without PostgreSQL, the app will attempt to use the default connection
 

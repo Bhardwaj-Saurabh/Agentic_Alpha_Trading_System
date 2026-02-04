@@ -1,12 +1,12 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-from storage.csv_storage import CSVStorage
+from db.database import Database
 from data.market_data import MarketData
 from agents.pydantic_agents import PydanticTradingAgentSystem, Dependencies
 
 # Initialize components
-storage = CSVStorage()
+storage = Database()
 market_data = MarketData()
 
 
@@ -797,21 +797,14 @@ with st.expander("📂 Data Storage Information", expanded=False):
 
     if st.button("🗑️ Clear All Stored Data"):
         try:
-            import os
-            files_to_clear = [
-                "data_storage/trading_decisions.csv",
-                "data_storage/trading_signals.csv",
-                "data_storage/screened_stocks.csv",
-                "data_storage/audit_trail.csv"
-            ]
-
-            for file_path in files_to_clear:
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-
-            # Reinitialize the storage
-            storage._initialize_csv_files()
-            st.success("All stored data cleared!")
+            # Clear database tables
+            with storage.conn.cursor() as cur:
+                cur.execute("TRUNCATE TABLE trading_decisions CASCADE")
+                cur.execute("TRUNCATE TABLE audit_trail CASCADE")
+                cur.execute("TRUNCATE TABLE trading_signals CASCADE")
+                cur.execute("TRUNCATE TABLE screened_stocks CASCADE")
+                storage.conn.commit()
+            st.success("All stored data cleared from database!")
             st.rerun()
         except Exception as e:
             st.error(f"Error clearing data: {str(e)}")
