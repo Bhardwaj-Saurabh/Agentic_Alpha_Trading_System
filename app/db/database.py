@@ -13,6 +13,12 @@ class Database:
             # Try config file first, then fallback to environment variable
             database_url = Config.DATABASE_URL if hasattr(Config, 'DATABASE_URL') else os.environ.get('DATABASE_URL', 'postgresql://localhost/trading_db')
             self.conn = psycopg2.connect(database_url)
+
+            # Set search path to public schema for cloud databases
+            with self.conn.cursor() as cur:
+                cur.execute("SET search_path TO public;")
+                self.conn.commit()
+
         except Exception as e:
             print(f"Database connection failed: {e}")
             print("Using SQLite fallback...")
@@ -22,7 +28,42 @@ class Database:
     def create_tables(self):
         with self.conn.cursor() as cur:
             try:
-                # Keep existing sequences for signals and decisions
+                # Try to find a schema the user owns or has CREATE privileges on
+                cur.execute("""
+                    SELECT n.nspname
+                    FROM pg_catalog.pg_namespace n
+                    WHERE n.nspowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)
+                       OR pg_catalog.has_schema_privilege(current_user, n.nspname, 'CREATE')
+                    AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast', 'pg_temp_1', 'pg_toast_temp_1')
+                    ORDER BY
+                        CASE
+                            WHEN n.nspname = 'public' THEN 1
+                            WHEN n.nspowner = (SELECT oid FROM pg_roles WHERE rolname = current_user) THEN 2
+                            ELSE 3
+                        END
+                    LIMIT 1;
+                """)
+                result = cur.fetchone()
+
+                if result:
+                    schema_name = result[0]
+                    print(f"Using schema: {schema_name}")
+                    cur.execute(f"SET search_path TO {schema_name};")
+                    self.conn.commit()
+                else:
+                    # Try to get current_user and create a schema with that name
+                    cur.execute("SELECT current_user;")
+                    username = cur.fetchone()[0]
+                    try:
+                        cur.execute(f"CREATE SCHEMA IF NOT EXISTS {username};")
+                        cur.execute(f"SET search_path TO {username};")
+                        self.conn.commit()
+                        print(f"Created and using schema: {username}")
+                    except:
+                        # If all else fails, just proceed and hope for the best
+                        print("Warning: Could not set a specific schema, using database default")
+
+                # Keep existing sequences for signals and decisions (without schema prefix)
                 cur.execute("""
                     CREATE SEQUENCE IF NOT EXISTS trading_signals_id_seq;
                     CREATE SEQUENCE IF NOT EXISTS trading_decisions_id_seq;

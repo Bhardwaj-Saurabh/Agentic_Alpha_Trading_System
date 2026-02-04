@@ -207,3 +207,8 @@ marimo/_lsp/
 __marimo__/
 
 claude.md
+API_INTEGRATION_GUIDE.md
+DATABASE_CONNECTION_SUCCESS.md
+LIVE_DATA_INTEGRATION_SUMMARY.md
+test_apis.py
+test_database.py

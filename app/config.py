@@ -14,10 +14,11 @@ class Config:
     # Alternative AI Service (Anthropic) - Optional
     ANTHROPIC_API_KEY = "your_anthropic_api_key_here"  # Optional, only if using Anthropic
     
-    # Financial Data APIs - Optional
-    # I am leaving these here to know there are other apis that you can use in the future.
-    ALPHA_VANTAGE_API_KEY = "your_alpha_vantage_key_here"  # Optional, for additional market data
-    QUANDL_API_KEY = "your_quandl_key_here"  # Optional, for financial data
+    # Financial Data APIs - Enhanced multi-source data integration
+    # Multi-source data for enhanced accuracy and redundancy
+    ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API")  # Alpha Vantage for market data
+    X_RAPID_API_KEY = os.getenv("X_RAPID_API_KEY")          # RapidAPI key for Quandl
+    X_RAPIDAPI_HOST = os.getenv("X_RAPIAPI_HOST", "QuandlzakutynskyV1.p.rapidapi.com")  # RapidAPI host
     
     # News and Sentiment APIs - Optional  
     # I am leaving this here to show that taviliy is a great way to use news api to get better sentiment analysis.
