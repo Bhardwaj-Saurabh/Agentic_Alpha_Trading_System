@@ -34,29 +34,37 @@ def test_configuration():
     """Test API configuration"""
     print_header("1. Testing API Configuration")
 
+    all_configured = True
+
     # Check OpenAI
     if Config.OPENAI_API_KEY:
         print_result(True, f"OpenAI API Key configured ({Config.OPENAI_API_KEY[:20]}...)")
     else:
         print_result(False, "OpenAI API Key not configured")
+        all_configured = False
 
     # Check Alpha Vantage
     if Config.ALPHA_VANTAGE_API_KEY:
         print_result(True, f"Alpha Vantage API Key configured ({Config.ALPHA_VANTAGE_API_KEY[:10]}...)")
     else:
         print_result(False, "Alpha Vantage API Key not configured")
+        all_configured = False
 
     # Check RapidAPI
     if Config.X_RAPID_API_KEY and Config.X_RAPIDAPI_HOST:
         print_result(True, f"RapidAPI configured (Host: {Config.X_RAPIDAPI_HOST})")
     else:
         print_result(False, "RapidAPI not fully configured")
+        all_configured = False
 
     # Check Tavily
     if Config.TAVILY_API_KEY:
         print_result(True, f"Tavily API Key configured ({Config.TAVILY_API_KEY[:20]}...)")
     else:
         print_result(False, "Tavily API Key not configured")
+        all_configured = False
+
+    return all_configured
 
 
 def test_real_time_quote(market_data, symbol="AAPL"):
@@ -93,12 +101,12 @@ def test_fundamentals(market_data, symbol="AAPL"):
             print_result(True, f"Fetched fundamentals for {fundamentals['name']}")
             print(f"      Sector: {fundamentals['sector']}")
             print(f"      Industry: {fundamentals['industry']}")
-            print(f"      Market Cap: ${fundamentals['market_cap']:,}")
+            print(f"      Market Cap: {fundamentals['market_cap']}")  # Already formatted as string
             print(f"      P/E Ratio: {fundamentals['pe_ratio']}")
             print(f"      EPS: {fundamentals['eps']}")
             print(f"      Dividend Yield: {fundamentals['dividend_yield']}")
-            print(f"      52-Week High: ${fundamentals['52_week_high']}")
-            print(f"      52-Week Low: ${fundamentals['52_week_low']}")
+            print(f"      52-Week High: {fundamentals.get('week_52_high', 'N/A')}")  # Correct key name
+            print(f"      52-Week Low: {fundamentals.get('week_52_low', 'N/A')}")    # Correct key name
             return True
         else:
             print_result(False, "No fundamental data returned")
@@ -224,7 +232,7 @@ def run_all_tests():
     }
 
     # Run tests
-    test_configuration()  # No return value needed
+    results["Configuration"] = test_configuration()
     results["Real-Time Quote"] = test_real_time_quote(market_data, test_symbol)
     results["Fundamentals"] = test_fundamentals(market_data, test_symbol)
     results["News & Sentiment"] = test_news_sentiment(market_data, test_symbol)

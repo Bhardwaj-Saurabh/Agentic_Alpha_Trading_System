@@ -4,7 +4,7 @@ Tests SEC Regulation M compliance and audit trail functionality
 """
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'app'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from app.agents.pydantic_agents import PydanticTradingAgentSystem
 from app.data.market_data import MarketData

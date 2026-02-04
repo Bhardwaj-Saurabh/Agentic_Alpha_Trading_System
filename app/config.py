@@ -18,7 +18,7 @@ class Config:
     # Multi-source data for enhanced accuracy and redundancy
     ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API")  # Alpha Vantage for market data
     X_RAPID_API_KEY = os.getenv("X_RAPID_API_KEY")          # RapidAPI key for Quandl
-    X_RAPIDAPI_HOST = os.getenv("X_RAPIAPI_HOST", "QuandlzakutynskyV1.p.rapidapi.com")  # RapidAPI host
+    X_RAPIDAPI_HOST = os.getenv("X_RAPIDAPI_HOST", "QuandlzakutynskyV1.p.rapidapi.com")  # RapidAPI host
     
     # News and Sentiment APIs - Optional  
     # I am leaving this here to show that taviliy is a great way to use news api to get better sentiment analysis.
