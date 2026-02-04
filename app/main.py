@@ -116,24 +116,15 @@ def run_trading_signal_agent():
         if "error" in signal_results:
             return {"error": signal_results["error"]}
 
-        signal_analysis = signal_results.get("analysis", "No signal analysis available")
+        # FIXED: Return the actual TradingDecision object, not a custom dict
+        trading_decision = signal_results.get("analysis")
 
-        if hasattr(signal_analysis, 'decision'):
-            decision_signal = signal_analysis.decision.value if hasattr(signal_analysis.decision, 'value') else str(signal_analysis.decision)
-            risk_level = signal_analysis.risk_level.value if hasattr(signal_analysis.risk_level, 'value') else str(signal_analysis.risk_level)
-            signal_text = f"SIGNAL: {decision_signal}\nRISK LEVEL: {risk_level}\n\nRATIONALE: {signal_analysis.rationale}"
-            confidence = signal_analysis.confidence
-        else:
-            signal_text = str(signal_analysis)
-            confidence = signal_results.get("confidence", 0.8)
-            decision_signal = "HOLD"
-            risk_level = "MEDIUM"
+        if trading_decision is None:
+            return {"error": "No trading decision returned"}
 
+        # Store the validated TradingDecision object with timestamp
         return {
-            "analysis": signal_text,
-            "decision": decision_signal,
-            "risk_level": risk_level,
-            "confidence": confidence,
+            "trading_decision": trading_decision,  # Store the actual Pydantic model
             "timestamp": pd.Timestamp.now()
         }
     except Exception as e:
@@ -694,20 +685,44 @@ with col2:
     if 'trading_signal_analysis' in st.session_state and st.session_state.trading_signal_analysis:
         with st.expander("📊 Trading Signal Agent Results", expanded=True):
             result = st.session_state.trading_signal_analysis
-            st.write(result['analysis'])
 
-            # Highlight the signal decision
-            decision = result.get('decision', 'HOLD')
-            if decision == 'BUY':
-                st.success(f"🟢 **Signal: {decision}**")
-            elif decision == 'SELL':
-                st.error(f"🔴 **Signal: {decision}**")
+            # FIXED: Display the validated TradingDecision object
+            if "trading_decision" in result:
+                trading_decision = result["trading_decision"]
+
+                # Extract enum values for UI display
+                decision = trading_decision.decision.value if hasattr(trading_decision.decision, 'value') else str(trading_decision.decision)
+                risk_level = trading_decision.risk_level.value if hasattr(trading_decision.risk_level, 'value') else str(trading_decision.risk_level)
+
+                # Highlight the signal decision
+                if decision == 'BUY':
+                    st.success(f"🟢 **Signal: {decision}**")
+                elif decision == 'SELL':
+                    st.error(f"🔴 **Signal: {decision}**")
+                else:
+                    st.warning(f"🟡 **Signal: {decision}**")
+
+                st.write(f"**Risk Level:** {risk_level}")
+                st.write(f"**Confidence:** {trading_decision.confidence:.1%}")
+                st.write(f"**Rationale:** {trading_decision.rationale}")
+
+                if trading_decision.position_size_percent:
+                    st.write(f"**Position Size:** {trading_decision.position_size_percent:.1%}")
+                if trading_decision.entry_price:
+                    st.write(f"**Entry Price:** ${trading_decision.entry_price:.2f}")
+                if trading_decision.exit_price:
+                    st.write(f"**Exit Price:** ${trading_decision.exit_price:.2f}")
+
+                st.write(f"**Completed:** {result['timestamp'].strftime('%H:%M:%S')}")
+
+                # Display the complete validated TradingDecision object in JSON format
+                st.subheader("Validated TradingDecision Object")
+                st.json(trading_decision.model_dump())
             else:
-                st.warning(f"🟡 **Signal: {decision}**")
-
-            st.write(f"**Risk Level:** {result.get('risk_level', 'MEDIUM')}")
-            st.write(f"**Confidence:** {result['confidence']:.1%}")
-            st.write(f"**Completed:** {result['timestamp'].strftime('%H:%M:%S')}")
+                # Fallback for old format (backward compatibility)
+                st.write(result.get('analysis', 'No analysis available'))
+                st.write(f"**Confidence:** {result.get('confidence', 0):.1%}")
+                st.write(f"**Completed:** {result['timestamp'].strftime('%H:%M:%S')}")
     else:
         st.info("📊 Trading Signal Agent: Not run yet - Click button in sidebar")
 
