@@ -174,7 +174,12 @@ def test_step_4_trading_signal_enum():
                 analysis = result["analysis"]
 
                 # Verify decision is a valid TradingSignal enum value
-                decision = str(analysis.decision)
+                # Handle both enum objects and string values
+                if hasattr(analysis.decision, 'value'):
+                    decision = analysis.decision.value
+                else:
+                    decision = str(analysis.decision)
+
                 valid_signals = ["BUY", "SELL", "HOLD"]
 
                 if decision in valid_signals:
@@ -184,7 +189,12 @@ def test_step_4_trading_signal_enum():
                     return False
 
                 # Verify risk_level is a valid RiskLevel enum value
-                risk = str(analysis.risk_level)
+                # Handle both enum objects and string values
+                if hasattr(analysis.risk_level, 'value'):
+                    risk = analysis.risk_level.value
+                else:
+                    risk = str(analysis.risk_level)
+
                 valid_risks = ["LOW", "MEDIUM", "HIGH"]
 
                 if risk in valid_risks:
