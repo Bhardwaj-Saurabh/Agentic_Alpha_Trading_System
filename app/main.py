@@ -160,13 +160,17 @@ def run_regulatory_agent(symbol):
         }
         
         # Save audit entry for regulatory compliance
+        # Truncate action to 50 chars to fit VARCHAR(50) constraint
+        action_truncated = recommendation[:50] if len(recommendation) > 50 else recommendation
+        status_truncated = status[:50] if len(status) > 50 else status
+
         storage.save_audit_entry(
             symbol=symbol,
             decision_type="REGULATORY",
-            action=recommendation,
+            action=action_truncated,
             confidence=0.9,
             rationale=compliance_text,
-            compliance_status=status
+            compliance_status=status_truncated
         )
         
         return result
@@ -249,8 +253,17 @@ def save_trade_to_database(symbol):
                                         st.session_state.risk_analysis['confidence'], 'risk_manager')
 
         if 'trading_signal_analysis' in st.session_state and st.session_state.trading_signal_analysis:
-            storage.save_trading_decision(symbol, st.session_state.trading_signal_analysis['decision'],
-                                        st.session_state.trading_signal_analysis['confidence'], 'trading_signal')
+            # FIXED: Access the TradingDecision object properly
+            signal_result = st.session_state.trading_signal_analysis
+            if 'trading_decision' in signal_result:
+                trading_decision = signal_result['trading_decision']
+                decision_value = trading_decision.decision.value if hasattr(trading_decision.decision, 'value') else str(trading_decision.decision)
+                storage.save_trading_decision(symbol, decision_value,
+                                            trading_decision.confidence, 'trading_signal')
+            else:
+                # Fallback for old format
+                storage.save_trading_decision(symbol, signal_result.get('decision', 'HOLD'),
+                                            signal_result.get('confidence', 0.8), 'trading_signal')
 
         if 'regulatory_analysis' in st.session_state and st.session_state.regulatory_analysis:
             storage.save_trading_decision(symbol, st.session_state.regulatory_analysis['recommendation'], 
