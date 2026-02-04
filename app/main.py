@@ -52,13 +52,14 @@ def run_market_analyst():
     except Exception as e:
         return {"error": str(e)}
 
-def run_strategy_agent(symbol):
+def run_strategy_agent():
     """Run Strategy Agent individually"""
     # Check if Market Analyst has run
     if 'market_analysis' not in st.session_state or not st.session_state.market_analysis:
         return {"error": "❌ Please run Market Analyst first - Strategy Agent needs market data"}
-    
+
     try:
+        symbol = st.session_state.symbol
         print(f"🎯 Running Strategy Agent for {symbol}...")
         
         # Use market results from session state
@@ -75,13 +76,14 @@ def run_strategy_agent(symbol):
     except Exception as e:
         return {"error": str(e)}
 
-def run_risk_manager(symbol):
+def run_risk_manager():
     """Run Risk Manager Agent individually"""
     # Check if Market Analyst has run
     if 'market_analysis' not in st.session_state or not st.session_state.market_analysis:
         return {"error": "❌ Please run Market Analyst first - Risk Manager needs market data"}
-    
+
     try:
+        symbol = st.session_state.symbol
         print(f"⚠️ Running Risk Manager for {symbol}...")
         
         # Use market results from session state
@@ -395,9 +397,7 @@ if 'data' in st.session_state and st.session_state.data is not None and not st.s
     # Strategy Agent Button
     if strategy_button:
         with st.spinner("🎯 Running Strategy Agent..."):
-            #TODO:  how can you call the strategy agent without passing in the symbol?
-            #Please refer to the run_market_analysis call.  Remember you are using preserving state through streamlit.
-            result = run_strategy_agent(symbol)
+            result = run_strategy_agent()
             if "error" in result:
                 st.error(result["error"])
             else:
@@ -408,9 +408,7 @@ if 'data' in st.session_state and st.session_state.data is not None and not st.s
     # Risk Manager Button
     if risk_button:
         with st.spinner("⚠️ Running Risk Manager..."):
-            #TODO:  How can you run the risk_mananger without passing in the symbol?
-            #Please refer to the run_market_analysis call.  Remember you are using preserving state through streamlit.
-            result = run_risk_manager(symbol)
+            result = run_risk_manager()
             if "error" in result:
                 st.error(result["error"])
             else:
@@ -421,8 +419,7 @@ if 'data' in st.session_state and st.session_state.data is not None and not st.s
     # Regulatory Agent Button
     if regulatory_button:
         with st.spinner("🏛️ Running Regulatory Agent..."):
-            #TODO: Call the regulatory agent.
-            #result = 
+            result = run_regulatory_agent(symbol)
             if "error" in result:
                 st.error(result["error"])
             else:

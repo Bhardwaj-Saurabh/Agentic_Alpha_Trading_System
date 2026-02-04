@@ -126,9 +126,7 @@ class PydanticTradingAgentSystem:
         @strategy_agent.tool
         def get_market_data(ctx: RunContext[Dependencies], period: str = "1mo") -> str:
             """Get comprehensive stock data with technical indicators"""
-            #TODO:  we have to assume stock data was not called so that we can use this agent outside of this program.
-            #Where can I call to get the stock data?
-            # stock_data = 
+            stock_data = get_stock_data(ctx.deps.symbol, period, data=ctx.deps.data)
             return f"Stock data retrieved: {stock_data.model_dump_json()}"
         
         @strategy_agent.tool
