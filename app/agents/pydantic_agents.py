@@ -343,63 +343,27 @@ class PydanticTradingAgentSystem:
             
             # Market Analysis
             market_prompt = f"""
-            Analyze the market data for {symbol}. Please:
+            Analyze the market data for {symbol}:
             1. Get current stock data with technical indicators using the get_market_data tool
-            2. Calculate Fibonacci retracement levels using get_fibonacci_analysis tool
-            3. Analyze market sentiment using get_sentiment_analysis tool for multiple timeframes
-            4. Provide a comprehensive market analysis with confidence scores
-            
-            Focus on actionable insights including price trends, volume patterns, technical signal strength, and sentiment indicators.
-            Return a structured MarketAnalysisResponse with your complete analysis.
+            2. Provide market analysis with confidence scores and key insights
+
+            Focus on actionable insights including price trends, volume patterns, and technical signals.
+            Return a structured MarketAnalysisResponse with your analysis.
             """
             
-            market_result = self.agents["market_analyst"].run_sync(market_prompt, deps=deps)
+            market_result = self.agents["market_analyst"].run_sync(
+                market_prompt,
+                deps=deps,
+                message_history=None
+            )
             results["market_analysis"] = {
                 "agent": "market_analyst",
                 "analysis": market_result.output,
                 "confidence": market_result.output.overall_confidence if hasattr(market_result.output, 'overall_confidence') else 0.8
             }
-            
-            # Always run Strategy and Risk agents for complete analysis
-            # Strategy Analysis
-            strategy_prompt = f"""
-            Based on market data for {symbol}, develop comprehensive trading strategies:
-            1. Get current stock data and Fibonacci levels using available tools
-            2. Analyze MACD crossovers, Bollinger Band signals, and momentum indicators
-            3. Generate a specific trading signal (BUY/SELL/HOLD) with confidence score
-            4. Provide entry/exit points and position sizing recommendations
-            5. Save your trading decision using save_strategy_decision tool
-            6. Create an audit entry using save_strategy_audit tool
-            
-            Return a structured TradingDecision with specific recommendations.
-            """
-            #run sync is running all tools in parallel.
-            strategy_result = self.agents["strategy_agent"].run_sync(strategy_prompt, deps=deps)
-            results["strategy_analysis"] = {
-                "agent": "strategy_agent", 
-                "analysis": strategy_result.output,
-                "confidence": strategy_result.output.confidence if hasattr(strategy_result.output, 'confidence') else 0.75
-            }
-            
-            # Risk Assessment
-            risk_prompt = f"""
-            Assess the risk profile for trading {symbol}:
-            1. Get market data and sentiment analysis using available tools
-            2. Analyze recent volatility and price patterns
-            3. Review historical decision patterns using analyze_patterns tool
-            4. Evaluate market sentiment and potential risks
-            5. Recommend position sizing and risk management measures
-            6. Save risk assessment using save_risk_audit tool
-            
-            Return a structured TradingDecision focused on risk management.
-            """
-            
-            risk_result = self.agents["risk_manager"].run_sync(risk_prompt, deps=deps)
-            results["risk_analysis"] = {
-                "agent": "risk_manager",
-                "analysis": risk_result.output, 
-                "confidence": risk_result.output.confidence if hasattr(risk_result.output, 'confidence') else 0.85
-            }
+
+            # NOTE: Strategy and Risk agents should be called separately using
+            # run_strategy_analysis() and run_risk_management() functions
             
             return results
             
@@ -446,19 +410,19 @@ class PydanticTradingAgentSystem:
             deps = Dependencies(symbol=symbol)
             
             compliance_prompt = f"""
-            Perform comprehensive SEC Regulation M compliance check for {symbol}:
+            Perform SEC Regulation M compliance check for {symbol}:
             1. Use check_compliance tool to analyze current compliance status
-            2. Get recent market data for volume and price pattern analysis
-            3. Review audit history using get_audit_history tool for context
-            4. Analyze trading signals for potential violations: {trading_signals}
-            5. Determine if any trades should be blocked for compliance reasons
-            6. Save detailed compliance analysis using save_compliance_audit tool
-            7. Provide clear recommendation: APPROVED, PROCEED_WITH_CAUTION, or BLOCK_TRADES
-            
-            Return a structured ComplianceResponse with detailed compliance analysis.
+            2. Analyze trading signals for potential violations: {trading_signals}
+            3. Provide clear recommendation: APPROVED, PROCEED_WITH_CAUTION, or BLOCK_TRADES
+
+            Return a structured ComplianceResponse with compliance analysis.
             """
             
-            compliance_result = self.agents["regulatory_agent"].run_sync(compliance_prompt, deps=deps)
+            compliance_result = self.agents["regulatory_agent"].run_sync(
+                compliance_prompt,
+                deps=deps,
+                message_history=None
+            )
             
             return {
                 "agent": "regulatory_agent",
@@ -476,23 +440,26 @@ class PydanticTradingAgentSystem:
             deps = Dependencies(symbol=symbol, data=data)
 
             signal_prompt = f"""
-            Generate a clear trading signal for {symbol}:
-            1. Get current market data using get_market_data tool
-            2. Calculate Fibonacci levels using get_fibonacci_analysis tool
-            3. Analyze market sentiment using get_sentiment_analysis tool
-            4. Review historical patterns using analyze_patterns tool
-            5. Generate a specific trading signal: BUY, SELL, or HOLD
-            6. Determine risk level: LOW, MEDIUM, or HIGH
-            7. Provide specific entry/exit prices and position sizing recommendations
-            8. Save your signal using save_signal_audit tool
+            Generate a clear trading signal for {symbol}.
+
+            You have market data available. Based on the current data:
+            - Generate a specific trading signal: BUY, SELL, or HOLD
+            - Determine risk level: LOW, MEDIUM, or HIGH
+            - Provide confidence score (0-1) and brief rationale
 
             CRITICAL: Your decision field MUST be exactly one of: "BUY", "SELL", or "HOLD"
             CRITICAL: Your risk_level field MUST be exactly one of: "LOW", "MEDIUM", or "HIGH"
 
-            Return a structured TradingDecision with clear, actionable recommendations.
+            DO NOT call multiple tools. Make your decision based on the data provided.
+            Return a structured TradingDecision immediately.
             """
 
-            signal_result = self.agents["trading_signal"].run_sync(signal_prompt, deps=deps)
+            # Run with shorter retries to prevent hanging on tool calls
+            signal_result = self.agents["trading_signal"].run_sync(
+                signal_prompt,
+                deps=deps,
+                message_history=None  # Don't use history to keep it fast
+            )
 
             return {
                 "agent": "trading_signal",

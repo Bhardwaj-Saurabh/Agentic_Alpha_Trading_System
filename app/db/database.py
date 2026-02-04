@@ -9,6 +9,7 @@ from config import Config
 
 class Database:
     def __init__(self):
+        self.conn = None  # Initialize to None first
         try:
             # Try config file first, then fallback to environment variable
             database_url = Config.DATABASE_URL if hasattr(Config, 'DATABASE_URL') else os.environ.get('DATABASE_URL', 'postgresql://localhost/trading_db')
@@ -21,9 +22,16 @@ class Database:
 
         except Exception as e:
             print(f"Database connection failed: {e}")
-            print("Using SQLite fallback...")
-            # Could add SQLite fallback here if needed
-        self.create_tables()
+            print("Database will be disabled - continuing without persistence")
+            self.conn = None
+
+        # Only create tables if connection succeeded
+        if self.conn:
+            self.create_tables()
+
+    def is_connected(self):
+        """Check if database connection is active"""
+        return self.conn is not None
 
     def create_tables(self):
         with self.conn.cursor() as cur:
@@ -167,6 +175,9 @@ class Database:
 
 
     def add_signal(self, symbol, signal_type, strategy, confidence):
+        if not self.is_connected():
+            return  # Silently skip if no database connection
+
         with self.conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO trading_signals 
@@ -208,6 +219,9 @@ class Database:
 
     def save_trading_decision(self, symbol: str, decision: str, confidence: float, agent_name: str = 'supervisor'):
         """Save a new trading decision for a stock"""
+        if not self.is_connected():
+            return  # Silently skip if no database connection
+
         try:
             with self.conn.cursor() as cur:
                 cur.execute("""
@@ -216,24 +230,22 @@ class Database:
                     """, (symbol, decision, confidence, agent_name))
                 self.conn.commit()
         except Exception as e:
-            print(f"Database connection error in save_trading_decision: {str(e)}")
-            # Try to reconnect
-            try:
-                import os
-                self.conn = psycopg2.connect(os.environ['DATABASE_URL'])
-                with self.conn.cursor() as cur:
-                    cur.execute("""
-                        INSERT INTO trading_decisions (symbol, decision, confidence, agent_name)
-                        VALUES (%s, %s, %s, %s)
-                        """, (symbol, decision, confidence, agent_name))
-                    self.conn.commit()
-                print("Database reconnection successful")
-            except Exception as reconnect_error:
-                print(f"Database reconnection failed: {str(reconnect_error)}")
-                raise
+            self.conn.rollback()  # Rollback the failed transaction
+            error_msg = str(e)
+
+            # Handle duplicate key errors silently (already have a decision for this symbol today)
+            if "duplicate key" in error_msg.lower() or "unique constraint" in error_msg.lower():
+                # Silently skip - this is expected behavior (one decision per symbol per day)
+                return
+
+            # Only print non-duplicate errors
+            print(f"Database error in save_trading_decision: {error_msg}")
 
     def get_latest_trading_decisions(self, symbol: str, limit: int = 2):
         """Get the latest trading decisions for a stock"""
+        if not self.is_connected():
+            return []  # Return empty list if no database connection
+
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
                 SELECT decision, confidence, agent_name, created_at
@@ -303,15 +315,31 @@ class Database:
                     """, (limit,))
             return cur.fetchall()
 
-    def get_trading_decisions(self, symbol=None):
-        """Get all trading decisions, optionally filtered by symbol"""
+    def get_trading_decisions(self, symbol=None, limit=None):
+        """Get all trading decisions, optionally filtered by symbol and limited"""
+        if not self.is_connected():
+            return []  # Return empty list if no database connection
+
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
-            if symbol:
+            if symbol and limit:
+                cur.execute("""
+                    SELECT * FROM trading_decisions
+                    WHERE symbol = %s
+                    ORDER BY created_at DESC
+                    LIMIT %s
+                    """, (symbol, limit))
+            elif symbol:
                 cur.execute("""
                     SELECT * FROM trading_decisions
                     WHERE symbol = %s
                     ORDER BY created_at DESC
                     """, (symbol,))
+            elif limit:
+                cur.execute("""
+                    SELECT * FROM trading_decisions
+                    ORDER BY created_at DESC
+                    LIMIT %s
+                    """, (limit,))
             else:
                 cur.execute("""
                     SELECT * FROM trading_decisions
