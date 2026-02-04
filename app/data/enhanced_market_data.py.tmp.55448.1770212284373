@@ -122,7 +122,7 @@ class EnhancedMarketData:
 
     def get_company_fundamentals(self, symbol: str):
         """
-        Get company fundamentals from Alpha Vantage with Yahoo Finance fallback
+        Get company fundamentals from Alpha Vantage
 
         Args:
             symbol: Stock symbol
@@ -130,115 +130,56 @@ class EnhancedMarketData:
         Returns:
             dict: Company fundamental data
         """
-        # Check cache first
-        cache_key = f"fundamentals_{symbol}"
-        if cache_key in self.cache:
-            data, timestamp = self.cache[cache_key]
-            if datetime.now() - timestamp < timedelta(seconds=self.cache_timeout):
-                print(f"💾 Using cached fundamentals for {symbol}")
-                return data
+        if not self.alpha_vantage_key:
+            return None
 
-        # Try Alpha Vantage first
-        if self.alpha_vantage_key:
-            try:
-                # Get company overview
-                overview_data = self.get_alpha_vantage_data(symbol, "OVERVIEW")
-
-                if overview_data and overview_data != {}:
-                    # Format market cap for display
-                    market_cap_raw = overview_data.get("MarketCapitalization", "0")
-                    try:
-                        market_cap_val = float(market_cap_raw)
-                        if market_cap_val >= 1e12:
-                            market_cap = f"${market_cap_val/1e12:.2f}T"
-                        elif market_cap_val >= 1e9:
-                            market_cap = f"${market_cap_val/1e9:.2f}B"
-                        elif market_cap_val >= 1e6:
-                            market_cap = f"${market_cap_val/1e6:.2f}M"
-                        else:
-                            market_cap = f"${market_cap_val:,.0f}"
-                    except (ValueError, TypeError):
-                        market_cap = "N/A"
-
-                    fundamentals = {
-                        "symbol": symbol,
-                        "name": overview_data.get("Name", symbol),
-                        "sector": overview_data.get("Sector", "Unknown"),
-                        "industry": overview_data.get("Industry", "Unknown"),
-                        "market_cap": market_cap,
-                        "pe_ratio": overview_data.get("PERatio", "N/A"),
-                        "eps": overview_data.get("EPS", "N/A"),
-                        "dividend_yield": overview_data.get("DividendYield", "N/A"),
-                        "week_52_high": overview_data.get("52WeekHigh", "N/A"),
-                        "week_52_low": overview_data.get("52WeekLow", "N/A"),
-                        "beta": overview_data.get("Beta", "N/A"),
-                        "avg_volume": overview_data.get("SharesOutstanding", "N/A"),
-                        "description": overview_data.get("Description", "N/A")[:300] if overview_data.get("Description") else "N/A"
-                    }
-
-                    print(f"✅ Successfully fetched fundamentals for {symbol} from Alpha Vantage")
-                    print(f"   Company: {fundamentals['name']}")
-                    print(f"   Sector: {fundamentals['sector']}")
-                    print(f"   Market Cap: {fundamentals['market_cap']}")
-
-                    # Cache the result
-                    self.cache[cache_key] = (fundamentals, datetime.now())
-                    return fundamentals
-                else:
-                    print(f"⚠️ Alpha Vantage returned empty data for {symbol} fundamentals")
-
-            except Exception as e:
-                print(f"❌ Error fetching fundamentals from Alpha Vantage: {str(e)}")
-
-        # Fallback to Yahoo Finance
         try:
-            import yfinance as yf
-            print(f"🔄 Trying Yahoo Finance fallback for {symbol} fundamentals...")
+            # Get company overview
+            overview_data = self.get_alpha_vantage_data(symbol, "OVERVIEW")
 
-            ticker = yf.Ticker(symbol)
-            info = ticker.info
-
-            if info:
-                # Format market cap
-                market_cap_raw = info.get('marketCap', 0)
-                if market_cap_raw >= 1e12:
-                    market_cap = f"${market_cap_raw/1e12:.2f}T"
-                elif market_cap_raw >= 1e9:
-                    market_cap = f"${market_cap_raw/1e9:.2f}B"
-                elif market_cap_raw >= 1e6:
-                    market_cap = f"${market_cap_raw/1e6:.2f}M"
-                else:
-                    market_cap = "N/A" if market_cap_raw == 0 else f"${market_cap_raw:,.0f}"
+            if overview_data and overview_data != {}:
+                # Format market cap for display
+                market_cap_raw = overview_data.get("MarketCapitalization", "0")
+                try:
+                    market_cap_val = float(market_cap_raw)
+                    if market_cap_val >= 1e12:
+                        market_cap = f"${market_cap_val/1e12:.2f}T"
+                    elif market_cap_val >= 1e9:
+                        market_cap = f"${market_cap_val/1e9:.2f}B"
+                    elif market_cap_val >= 1e6:
+                        market_cap = f"${market_cap_val/1e6:.2f}M"
+                    else:
+                        market_cap = f"${market_cap_val:,.0f}"
+                except (ValueError, TypeError):
+                    market_cap = "N/A"
 
                 fundamentals = {
                     "symbol": symbol,
-                    "name": info.get('longName', info.get('shortName', symbol)),
-                    "sector": info.get('sector', 'Unknown'),
-                    "industry": info.get('industry', 'Unknown'),
+                    "name": overview_data.get("Name", symbol),
+                    "sector": overview_data.get("Sector", "Unknown"),
+                    "industry": overview_data.get("Industry", "Unknown"),
                     "market_cap": market_cap,
-                    "pe_ratio": info.get('trailingPE', 'N/A'),
-                    "eps": info.get('trailingEps', 'N/A'),
-                    "dividend_yield": f"{info.get('dividendYield', 0) * 100:.2f}%" if info.get('dividendYield') else 'N/A',
-                    "week_52_high": info.get('fiftyTwoWeekHigh', 'N/A'),
-                    "week_52_low": info.get('fiftyTwoWeekLow', 'N/A'),
-                    "beta": info.get('beta', 'N/A'),
-                    "avg_volume": info.get('averageVolume', 'N/A'),
-                    "description": info.get('longBusinessSummary', 'N/A')[:300] if info.get('longBusinessSummary') else "N/A"
+                    "pe_ratio": overview_data.get("PERatio", "N/A"),
+                    "eps": overview_data.get("EPS", "N/A"),
+                    "dividend_yield": overview_data.get("DividendYield", "N/A"),
+                    "week_52_high": overview_data.get("52WeekHigh", "N/A"),
+                    "week_52_low": overview_data.get("52WeekLow", "N/A"),
+                    "beta": overview_data.get("Beta", "N/A"),
+                    "avg_volume": overview_data.get("SharesOutstanding", "N/A"),
+                    "description": overview_data.get("Description", "N/A")[:300] if overview_data.get("Description") else "N/A"
                 }
 
-                print(f"✅ Successfully fetched fundamentals for {symbol} from Yahoo Finance")
+                print(f"✅ Successfully fetched fundamentals for {symbol}")
                 print(f"   Company: {fundamentals['name']}")
                 print(f"   Sector: {fundamentals['sector']}")
                 print(f"   Market Cap: {fundamentals['market_cap']}")
 
-                # Cache the result
-                self.cache[cache_key] = (fundamentals, datetime.now())
                 return fundamentals
+            else:
+                print(f"⚠️ Alpha Vantage returned empty data for {symbol} fundamentals")
 
-        except ImportError:
-            print("⚠️ yfinance not installed. Run: pip install yfinance")
         except Exception as e:
-            print(f"❌ Error fetching fundamentals from Yahoo Finance: {str(e)}")
+            print(f"❌ Error fetching fundamentals: {str(e)}")
 
         return None
 

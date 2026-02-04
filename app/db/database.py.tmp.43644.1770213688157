@@ -127,38 +127,6 @@ class Database:
                     CREATE INDEX IF NOT EXISTS audit_trail_timestamp_idx ON audit_trail (timestamp DESC);
                 """)
 
-                # MIGRATION: Fix column sizes if they're too small (automatic fix)
-                try:
-                    cur.execute("""
-                        DO $$
-                        BEGIN
-                            -- Check and alter action column if it's VARCHAR(20)
-                            IF EXISTS (
-                                SELECT 1 FROM information_schema.columns
-                                WHERE table_name = 'audit_trail'
-                                AND column_name = 'action'
-                                AND character_maximum_length = 20
-                            ) THEN
-                                ALTER TABLE audit_trail ALTER COLUMN action TYPE VARCHAR(50);
-                            END IF;
-
-                            -- Check and alter risk_level column if it's VARCHAR(20)
-                            IF EXISTS (
-                                SELECT 1 FROM information_schema.columns
-                                WHERE table_name = 'audit_trail'
-                                AND column_name = 'risk_level'
-                                AND character_maximum_length = 20
-                            ) THEN
-                                ALTER TABLE audit_trail ALTER COLUMN risk_level TYPE VARCHAR(50);
-                            END IF;
-                        END $$;
-                    """)
-                    self.conn.commit()
-                except Exception as migration_error:
-                    # Migration failed, but continue - table might not exist yet
-                    self.conn.rollback()
-                    pass
-
                 self.conn.commit()
             except Exception as e:
                 self.conn.rollback()

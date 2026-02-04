@@ -145,47 +145,47 @@ class EnhancedMarketData:
                 overview_data = self.get_alpha_vantage_data(symbol, "OVERVIEW")
 
                 if overview_data and overview_data != {}:
-                    # Format market cap for display
-                    market_cap_raw = overview_data.get("MarketCapitalization", "0")
-                    try:
-                        market_cap_val = float(market_cap_raw)
-                        if market_cap_val >= 1e12:
-                            market_cap = f"${market_cap_val/1e12:.2f}T"
-                        elif market_cap_val >= 1e9:
-                            market_cap = f"${market_cap_val/1e9:.2f}B"
-                        elif market_cap_val >= 1e6:
-                            market_cap = f"${market_cap_val/1e6:.2f}M"
-                        else:
-                            market_cap = f"${market_cap_val:,.0f}"
-                    except (ValueError, TypeError):
-                        market_cap = "N/A"
+                # Format market cap for display
+                market_cap_raw = overview_data.get("MarketCapitalization", "0")
+                try:
+                    market_cap_val = float(market_cap_raw)
+                    if market_cap_val >= 1e12:
+                        market_cap = f"${market_cap_val/1e12:.2f}T"
+                    elif market_cap_val >= 1e9:
+                        market_cap = f"${market_cap_val/1e9:.2f}B"
+                    elif market_cap_val >= 1e6:
+                        market_cap = f"${market_cap_val/1e6:.2f}M"
+                    else:
+                        market_cap = f"${market_cap_val:,.0f}"
+                except (ValueError, TypeError):
+                    market_cap = "N/A"
 
-                    fundamentals = {
-                        "symbol": symbol,
-                        "name": overview_data.get("Name", symbol),
-                        "sector": overview_data.get("Sector", "Unknown"),
-                        "industry": overview_data.get("Industry", "Unknown"),
-                        "market_cap": market_cap,
-                        "pe_ratio": overview_data.get("PERatio", "N/A"),
-                        "eps": overview_data.get("EPS", "N/A"),
-                        "dividend_yield": overview_data.get("DividendYield", "N/A"),
-                        "week_52_high": overview_data.get("52WeekHigh", "N/A"),
-                        "week_52_low": overview_data.get("52WeekLow", "N/A"),
-                        "beta": overview_data.get("Beta", "N/A"),
-                        "avg_volume": overview_data.get("SharesOutstanding", "N/A"),
-                        "description": overview_data.get("Description", "N/A")[:300] if overview_data.get("Description") else "N/A"
-                    }
+                fundamentals = {
+                    "symbol": symbol,
+                    "name": overview_data.get("Name", symbol),
+                    "sector": overview_data.get("Sector", "Unknown"),
+                    "industry": overview_data.get("Industry", "Unknown"),
+                    "market_cap": market_cap,
+                    "pe_ratio": overview_data.get("PERatio", "N/A"),
+                    "eps": overview_data.get("EPS", "N/A"),
+                    "dividend_yield": overview_data.get("DividendYield", "N/A"),
+                    "week_52_high": overview_data.get("52WeekHigh", "N/A"),
+                    "week_52_low": overview_data.get("52WeekLow", "N/A"),
+                    "beta": overview_data.get("Beta", "N/A"),
+                    "avg_volume": overview_data.get("SharesOutstanding", "N/A"),
+                    "description": overview_data.get("Description", "N/A")[:300] if overview_data.get("Description") else "N/A"
+                }
 
-                    print(f"✅ Successfully fetched fundamentals for {symbol} from Alpha Vantage")
-                    print(f"   Company: {fundamentals['name']}")
-                    print(f"   Sector: {fundamentals['sector']}")
-                    print(f"   Market Cap: {fundamentals['market_cap']}")
+                print(f"✅ Successfully fetched fundamentals for {symbol} from Alpha Vantage")
+                print(f"   Company: {fundamentals['name']}")
+                print(f"   Sector: {fundamentals['sector']}")
+                print(f"   Market Cap: {fundamentals['market_cap']}")
 
-                    # Cache the result
-                    self.cache[cache_key] = (fundamentals, datetime.now())
-                    return fundamentals
-                else:
-                    print(f"⚠️ Alpha Vantage returned empty data for {symbol} fundamentals")
+                # Cache the result
+                self.cache[cache_key] = (fundamentals, datetime.now())
+                return fundamentals
+            else:
+                print(f"⚠️ Alpha Vantage returned empty data for {symbol} fundamentals")
 
             except Exception as e:
                 print(f"❌ Error fetching fundamentals from Alpha Vantage: {str(e)}")

@@ -3,11 +3,13 @@ import pandas as pd
 import plotly.graph_objects as go
 from db.database import Database
 from data.market_data import MarketData
+from data.enhanced_market_data import EnhancedMarketData
 from agents.pydantic_agents import PydanticTradingAgentSystem, Dependencies
 
 # Initialize components
 storage = Database()
 market_data = MarketData()
+enhanced_data = EnhancedMarketData()
 
 
 # Initialize PydanticAI system
@@ -388,6 +390,135 @@ with col1:
                 data = st.session_state.data
 
         if st.session_state.chart_ready and not data.empty:
+            # Display real-time market data with live APIs
+            st.markdown("### Real-Time Market Data")
+
+            # Fetch real-time quote
+            with st.spinner("Fetching real-time data..."):
+                real_time_quote = enhanced_data.get_real_time_quote(st.session_state.symbol)
+
+            if real_time_quote and "error" not in real_time_quote:
+                # Display price metrics
+                col_price1, col_price2, col_price3, col_price4 = st.columns(4)
+
+                # Helper function to safely convert values
+                def safe_float(value, default=0.0):
+                    try:
+                        if isinstance(value, str):
+                            # Remove % sign and convert
+                            value = value.replace('%', '').strip()
+                        return float(value)
+                    except (ValueError, TypeError, AttributeError):
+                        return default
+
+                def safe_int(value, default=0):
+                    try:
+                        return int(value)
+                    except (ValueError, TypeError):
+                        return default
+
+                with col_price1:
+                    price = safe_float(real_time_quote.get('price', 0))
+                    change_pct = safe_float(real_time_quote.get('change_percent', 0))
+                    st.metric(
+                        label="Current Price",
+                        value=f"${price:.2f}",
+                        delta=f"{change_pct:.2f}%"
+                    )
+
+                with col_price2:
+                    change = safe_float(real_time_quote.get('change', 0))
+                    st.metric(
+                        label="Day Change",
+                        value=f"${change:.2f}"
+                    )
+
+                with col_price3:
+                    volume = safe_int(real_time_quote.get('volume', 0))
+                    st.metric(
+                        label="Volume",
+                        value=f"{volume:,.0f}"
+                    )
+
+                with col_price4:
+                    st.metric(
+                        label="Data Source",
+                        value=real_time_quote.get('source', 'Unknown')
+                    )
+
+                # Company Fundamentals
+                with st.expander("Company Fundamentals & Metrics", expanded=False):
+                    fundamentals = enhanced_data.get_company_fundamentals(st.session_state.symbol)
+
+                    if fundamentals and "error" not in fundamentals:
+                        fund_col1, fund_col2, fund_col3, fund_col4 = st.columns(4)
+
+                        with fund_col1:
+                            st.metric("Market Cap", fundamentals.get('market_cap', 'N/A'))
+                            st.metric("P/E Ratio", fundamentals.get('pe_ratio', 'N/A'))
+
+                        with fund_col2:
+                            eps = fundamentals.get('eps', 'N/A')
+                            eps_display = f"${safe_float(eps):.2f}" if eps != 'N/A' else 'N/A'
+                            st.metric("EPS", eps_display)
+                            st.metric("Dividend Yield", fundamentals.get('dividend_yield', 'N/A'))
+
+                        with fund_col3:
+                            week_high = fundamentals.get('week_52_high', 'N/A')
+                            week_low = fundamentals.get('week_52_low', 'N/A')
+                            high_display = f"${safe_float(week_high):.2f}" if week_high != 'N/A' else 'N/A'
+                            low_display = f"${safe_float(week_low):.2f}" if week_low != 'N/A' else 'N/A'
+                            st.metric("52 Week High", high_display)
+                            st.metric("52 Week Low", low_display)
+
+                        with fund_col4:
+                            st.metric("Beta", fundamentals.get('beta', 'N/A'))
+                            avg_vol = fundamentals.get('avg_volume', 'N/A')
+                            vol_display = f"{safe_int(avg_vol):,.0f}" if avg_vol != 'N/A' else 'N/A'
+                            st.metric("Avg Volume", vol_display)
+
+                        st.write(f"**Company:** {fundamentals.get('name', 'N/A')}")
+                        st.write(f"**Sector:** {fundamentals.get('sector', 'N/A')}")
+                        st.write(f"**Industry:** {fundamentals.get('industry', 'N/A')}")
+                    else:
+                        st.info("Fundamental data not available")
+
+                # News & Sentiment Analysis
+                with st.expander("AI-Powered News & Sentiment", expanded=False):
+                    with st.spinner("Analyzing news sentiment..."):
+                        news_data = enhanced_data.get_news_sentiment(
+                            st.session_state.symbol,
+                            query=f"{st.session_state.symbol} stock market news"
+                        )
+
+                    if news_data and "articles" in news_data:
+                        articles = news_data.get("articles", [])
+                        overall_sentiment = news_data.get("overall_sentiment", "NEUTRAL")
+
+                        # Display overall sentiment
+                        if overall_sentiment == "POSITIVE":
+                            st.success(f"Overall Sentiment: {overall_sentiment}")
+                        elif overall_sentiment == "NEGATIVE":
+                            st.error(f"Overall Sentiment: {overall_sentiment}")
+                        else:
+                            st.info(f"Overall Sentiment: {overall_sentiment}")
+
+                        st.write(f"**Total Articles Analyzed:** {len(articles)}")
+
+                        # Display articles
+                        for i, article in enumerate(articles[:5], 1):
+                            st.markdown(f"**{i}. [{article.get('title', 'No title')}]({article.get('url', '#')})**")
+                            st.write(f"*Source: {article.get('source', 'Unknown')}*")
+                            score = safe_float(article.get('score', 0))
+                            st.write(f"Sentiment: {article.get('sentiment', 'NEUTRAL')} | Score: {score:.2f}")
+                            st.write("---")
+                    else:
+                        st.info("No recent news articles found")
+            else:
+                st.warning("Unable to fetch real-time data. Using historical data only.")
+
+            st.markdown("---")
+
             fig = go.Figure()
 
             # Candlestick chart
