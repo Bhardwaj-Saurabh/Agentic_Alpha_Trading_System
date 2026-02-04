@@ -382,27 +382,6 @@ This project evaluated three leading AI agent frameworks to determine the optima
 | **Documentation** | Limited | **Extensive** | Minimal |
 | **Community** | Small | **Large** | Very small |
 
-#### Key Learnings
-
-**From PydanticAI**:
-- ✅ Type-safe outputs with native Pydantic integration
-- ❌ Autonomous tool calling is slower and harder to debug
-- ❌ Less control over agent behavior
-- ❌ Beta software with limited documentation
-
-**From LangChain**:
-- ✅ 30-50% faster due to predictable, non-autonomous execution
-- ✅ Better structured output control
-- ✅ Mature ecosystem with extensive documentation
-- ✅ Easier to debug and maintain
-- ✅ Large community and production battle-tested
-
-**From Smolagents**:
-- ✅ Quick mode pattern for time-sensitive operations
-- ✅ Smart context preparation (truncation to 300 chars)
-- ✅ Audit trail analytics for pattern detection
-- ❌ Framework too experimental for production
-
 #### Migration Impact
 
 ```python
@@ -871,34 +850,11 @@ streamlit run app/main.py --server.port 5000 --server.address 0.0.0.0
 
 ```bash
 # Step 1: Install Python Dependencies
-pip install streamlit==1.30.0
-pip install pandas==2.0.3
-pip install numpy==1.24.3
-pip install plotly==5.18.0
-pip install yfinance==0.2.32
-pip install langchain==0.3.16
-pip install langchain-openai==0.2.13
-pip install pydantic==2.10.5
-pip install psycopg2-binary==2.9.11
-pip install tavily-python==0.3.0
-pip install requests==2.31.0
-pip install python-dotenv==1.0.0
+uv venv
+source .venv/Scripts/activate
+uv pip install -r requirements.txt
 
-# Step 2: Verify Database Connection
-python test_database.py
-
-# Expected Output:
-# ======================================================================
-# TESTING POSTGRESQL DATABASE CONNECTION
-# ======================================================================
-# [1] Initializing database connection...
-#    SUCCESS: Database connection successful!
-# [2] Creating/verifying tables...
-#    SUCCESS: All tables created/verified successfully!
-# ...
-# ALL DATABASE TESTS PASSED!
-
-# Step 3: Test Live Data APIs
+# Step 2: Test Live Data APIs
 python test_apis.py
 
 # Expected Output:
@@ -927,7 +883,7 @@ DATABASE_PORT=5432
 DATABASE_NAME=alpha_database_bestfromin
 
 # Required - Live Market Data
-ALPHA_VANTAGE_API=ZNSSQ44LTI9WJJNG     # Alpha Vantage for real-time quotes & fundamentals
+ALPHA_VANTAGE_API=************     # Alpha Vantage for real-time quotes & fundamentals
 X_RAPID_API_KEY=5f4b6ab755msh...        # RapidAPI key for backup data source
 X_RAPIAPI_HOST=QuandlzakutynskyV1.p.rapidapi.com  # RapidAPI host
 
